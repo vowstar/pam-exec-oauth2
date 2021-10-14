@@ -23,7 +23,6 @@ package main
 import (
 	"bufio"
 	"context"
-	"crypto/rand"
 	"fmt"
 	"net/url"
 	"os"
@@ -71,26 +70,15 @@ func CheckUserOnHost(s []string, u string) bool {
 	return false
 }
 
-// Return securely generated random bytes
-func CreateRandom(n int) string {
-	b := make([]byte, n)
-	_, err := rand.Read(b)
-	if err != nil {
-		fmt.Println(err)
-		//os.Exit(1)
-	}
-	return string(b)
-}
-
 // User is created by executing shell command useradd
 func AddNewUser(name string) (bool) {
 
 	argUser := []string{"-m", name}
 
-	userCmd := exec.Command("useradd", argUser...)
+	userCmd := exec.Command("/usr/sbin/useradd", argUser...)
 
 	if out, err := userCmd.Output(); err != nil {
-		cli.Log.Debug(err, "There was an error by adding user", name)
+		cli.Log.Debug(err, ", There was an error by adding user: ", name)
 		return false
 	} else {
 
@@ -133,7 +121,7 @@ func main() {
 	cli.Exit1IfError(err)
 
 	if cli.ConfigFile != "" {
-		fmt.Println("Using config file:", cli.ConfigFile)
+		cli.Log.Debug("Using config file:", cli.ConfigFile)
 	}
 
 	username := os.Getenv("PAM_USER")
@@ -185,8 +173,8 @@ func main() {
 	userList := ReadEtcPasswd(userFile)
 
 	if !oauth2Token.Valid() {
-		cli.Exit(1)
 		cli.Log.Debug("OAuth2 authentication failed")
+		cli.Exit(1)
 	} else {
 		if CheckUserOnHost(userList, username) == false {
 			if AddNewUser(username) == true {
