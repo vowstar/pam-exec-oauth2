@@ -3,10 +3,10 @@
 // license that can be found in the LICENSE file.
 
 // Package cern provides constants for using OAuth2 to access CERN services.
-package cern // import "github.com/shimt/pam-exec-oauth2/internal/oauth2/cern"
+package cern // import "github.com/vowstar/pam-exec-oauth2/internal/oauth2/cern"
 
 import (
-	"github.com/shimt/pam-exec-oauth2/internal/oauth2"
+	"github.com/vowstar/pam-exec-oauth2/internal/oauth2"
 )
 
 // Endpoint is CERN's OAuth 2.0 endpoint.

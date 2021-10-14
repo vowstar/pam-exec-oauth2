@@ -10,7 +10,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/shimt/pam-exec-oauth2/internal/oauth2"
+	"github.com/vowstar/pam-exec-oauth2/internal/oauth2"
 )
 
 // AuthorizationHandler is a 3-legged-OAuth helper that prompts

@@ -7,7 +7,7 @@ package endpoints
 import (
 	"testing"
 
-	"github.com/shimt/pam-exec-oauth2/internal/oauth2"
+	"github.com/vowstar/pam-exec-oauth2/internal/oauth2"
 )
 
 func TestAWSCognitoEndpoint(t *testing.T) {

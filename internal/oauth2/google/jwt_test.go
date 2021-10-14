@@ -16,7 +16,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/shimt/pam-exec-oauth2/internal/oauth2/jws"
+	"github.com/vowstar/pam-exec-oauth2/internal/oauth2/jws"
 )
 
 func TestJWTAccessTokenSourceFromJSON(t *testing.T) {

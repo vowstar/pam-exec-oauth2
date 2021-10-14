@@ -15,8 +15,8 @@ import (
 	"runtime"
 
 	"cloud.google.com/go/compute/metadata"
-	"github.com/shimt/pam-exec-oauth2/internal/authhandler"
-	"github.com/shimt/pam-exec-oauth2/internal/oauth2"
+	"github.com/vowstar/pam-exec-oauth2/internal/authhandler"
+	"github.com/vowstar/pam-exec-oauth2/internal/oauth2"
 )
 
 // Credentials holds Google credentials, including "Application Default Credentials".

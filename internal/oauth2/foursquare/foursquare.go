@@ -3,10 +3,10 @@
 // license that can be found in the LICENSE file.
 
 // Package foursquare provides constants for using OAuth2 to access Foursquare.
-package foursquare // import "github.com/shimt/pam-exec-oauth2/internal/oauth2/foursquare"
+package foursquare // import "github.com/vowstar/pam-exec-oauth2/internal/oauth2/foursquare"
 
 import (
-	"github.com/shimt/pam-exec-oauth2/internal/oauth2"
+	"github.com/vowstar/pam-exec-oauth2/internal/oauth2"
 )
 
 // Endpoint is Foursquare's OAuth 2.0 endpoint.

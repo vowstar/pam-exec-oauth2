@@ -7,7 +7,7 @@ package jwt_test
 import (
 	"context"
 
-	"github.com/shimt/pam-exec-oauth2/internal/oauth2/jwt"
+	"github.com/vowstar/pam-exec-oauth2/internal/oauth2/jwt"
 )
 
 func ExampleJWTConfig() {

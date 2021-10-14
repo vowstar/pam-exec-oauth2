@@ -6,7 +6,7 @@
 package amazon
 
 import (
-	"github.com/shimt/pam-exec-oauth2/internal/oauth2"
+	"github.com/vowstar/pam-exec-oauth2/internal/oauth2"
 )
 
 // Endpoint is Amazon's OAuth 2.0 endpoint.

@@ -13,7 +13,7 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/shimt/pam-exec-oauth2/internal/oauth2/internal"
+	"github.com/vowstar/pam-exec-oauth2/internal/oauth2/internal"
 )
 
 func newConf(serverURL string) *Config {

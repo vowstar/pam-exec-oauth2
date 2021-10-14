@@ -5,7 +5,7 @@
 ## Install
 
 ```bash
-go get github.com/shimt/pam-exec-oauth2
+go get github.com/vowstar/pam-exec-oauth2
 
 PREFIX=/opt/pam-exec-oauth2
 

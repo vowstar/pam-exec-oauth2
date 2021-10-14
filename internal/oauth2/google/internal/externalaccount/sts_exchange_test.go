@@ -7,7 +7,7 @@ package externalaccount
 import (
 	"context"
 	"encoding/json"
-	"github.com/shimt/pam-exec-oauth2/internal/oauth2"
+	"github.com/vowstar/pam-exec-oauth2/internal/oauth2"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"

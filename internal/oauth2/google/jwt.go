@@ -9,9 +9,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/shimt/pam-exec-oauth2/internal/oauth2"
-	"github.com/shimt/pam-exec-oauth2/internal/oauth2/internal"
-	"github.com/shimt/pam-exec-oauth2/internal/oauth2/jws"
+	"github.com/vowstar/pam-exec-oauth2/internal/oauth2"
+	"github.com/vowstar/pam-exec-oauth2/internal/oauth2/internal"
+	"github.com/vowstar/pam-exec-oauth2/internal/oauth2/jws"
 )
 
 // JWTAccessTokenSourceFromJSON uses a Google Developers service account JSON

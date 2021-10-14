@@ -15,7 +15,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/shimt/pam-exec-oauth2/internal/oauth2"
+	"github.com/vowstar/pam-exec-oauth2/internal/oauth2"
 )
 
 // exchangeToken performs an oauth2 token exchange with the provided endpoint.

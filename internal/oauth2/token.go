@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/shimt/pam-exec-oauth2/internal/oauth2/internal"
+	"github.com/vowstar/pam-exec-oauth2/internal/oauth2/internal"
 )
 
 // expiryDelta determines how earlier a token should be considered
