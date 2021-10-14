@@ -73,9 +73,19 @@ func CheckUserOnHost(s []string, u string) bool {
 // User is created by executing shell command useradd
 func AddNewUser(name string) (bool) {
 
-	argUser := []string{"-m", name}
+	var argUser = []string{"-m", name}
+	var userCmd = exec.Command("/usr/sbin/useradd", argUser...)
 
-	userCmd := exec.Command("/usr/sbin/useradd", argUser...)
+	if _, err := os.Stat("/usr/sbin/useradd"); err == nil {
+		argUser = []string{"-m", name}
+		userCmd = exec.Command("/usr/sbin/useradd", argUser...)
+	} else if _, err := os.Stat("/usr/sbin/useradd"); err == nil {
+		argUser = []string{name}
+		userCmd = exec.Command("/usr/sbin/adduser", argUser...)
+	} else {
+		cli.Log.Debug(err, ", useradd and adduser command not found")
+		return false;
+	}
 
 	if out, err := userCmd.Output(); err != nil {
 		cli.Log.Debug(err, ", There was an error by adding user: ", name)
