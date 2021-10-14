@@ -23,16 +23,82 @@ package main
 import (
 	"bufio"
 	"context"
+	"crypto/rand"
 	"fmt"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"github.com/shimt/go-simplecli"
 	"github.com/shimt/pam-exec-oauth2/internal/oauth2"
 )
 
 var cli = simplecli.NewCLI()
+
+const (
+	userFile string = "/etc/passwd"
+)
+
+// Read file /etc/passwd and return slice of users
+func ReadEtcPasswd(f string) (list []string) {
+
+	file, err := os.Open(f)
+	if err != nil {
+		cli.Log.Debug(err)
+		panic(err)
+	}
+	defer file.Close()
+
+	r := bufio.NewScanner(file)
+
+	for r.Scan() {
+		lines := r.Text()
+		parts := strings.Split(lines, ":")
+		list = append(list, parts[0])
+	}
+	return list
+}
+
+// Check if user on the host
+func CheckUserOnHost(s []string, u string) bool {
+	for _, w := range s {
+		if u == w {
+			return true
+		}
+	}
+	return false
+}
+
+// Return securely generated random bytes
+func CreateRandom(n int) string {
+	b := make([]byte, n)
+	_, err := rand.Read(b)
+	if err != nil {
+		fmt.Println(err)
+		//os.Exit(1)
+	}
+	return string(b)
+}
+
+// User is created by executing shell command useradd
+func AddNewUser(name string) (bool) {
+
+	argUser := []string{"-m", name}
+
+	userCmd := exec.Command("useradd", argUser...)
+
+	if out, err := userCmd.Output(); err != nil {
+		cli.Log.Debug(err, "There was an error by adding user", name)
+		return false
+	} else {
+
+		cli.Log.Debug("Output: %s\n", out)
+		return true
+	}
+}
+
 
 func initCLI() {
 	cli.CommandLine.String("client-id", "", "OAuth2 Client ID")
@@ -116,9 +182,17 @@ func main() {
 
 	cli.Exit1IfError(err)
 
+	userList := ReadEtcPasswd(userFile)
+
 	if !oauth2Token.Valid() {
 		cli.Exit(1)
 		cli.Log.Debug("OAuth2 authentication failed")
+	} else {
+		if CheckUserOnHost(userList, username) == false {
+			if AddNewUser(username) == true {
+				cli.Log.Debug("User was added:", username)
+			}
+		}
 	}
 
 	cli.Log.Debug("OAuth2 authentication success")
