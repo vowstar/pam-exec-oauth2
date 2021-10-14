@@ -79,7 +79,7 @@ func AddNewUser(name string) (bool) {
 	if _, err := os.Stat("/usr/sbin/useradd"); err == nil {
 		argUser = []string{"-m", name}
 		userCmd = exec.Command("/usr/sbin/useradd", argUser...)
-	} else if _, err := os.Stat("/usr/sbin/useradd"); err == nil {
+	} else if _, err := os.Stat("/usr/sbin/adduser"); err == nil {
 		argUser = []string{name}
 		userCmd = exec.Command("/usr/sbin/adduser", argUser...)
 	} else {
