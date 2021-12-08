@@ -24,20 +24,24 @@ import (
 	"bufio"
 	"context"
 	"fmt"
-	"net/url"
+	"strconv"
 	"os"
 	"os/exec"
+	"os/user"
 	"path/filepath"
 	"strings"
 
+	"golang.org/x/oauth2"
+	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/shimt/go-simplecli"
-	"github.com/vowstar/pam-exec-oauth2/internal/oauth2"
 )
 
 var cli = simplecli.NewCLI()
 
 const (
 	userFile string = "/etc/passwd"
+	groupFile string = "/etc/group"
+	usersGroup string = "users"
 )
 
 // Read file /etc/passwd and return slice of users
@@ -60,8 +64,40 @@ func ReadEtcPasswd(f string) (list []string) {
 	return list
 }
 
+// Read file /etc/group and return slice of groups
+func ReadEtcGroup(f string) (list []string) {
+
+	file, err := os.Open(f)
+	if err != nil {
+		cli.Log.Debug(err)
+		panic(err)
+	}
+	defer file.Close()
+
+	r := bufio.NewScanner(file)
+
+	for r.Scan() {
+		lines := r.Text()
+		parts := strings.Split(lines, ":")
+		list = append(list, parts[0])
+	}
+	return list
+}
+
 // Check if user on the host
 func CheckUserOnHost(s []string, u string) bool {
+
+	for _, w := range s {
+		if u == w {
+			return true
+		}
+	}
+	return false
+}
+
+// Check if group on the host
+func CheckGroupOnHost(s []string, u string) bool {
+
 	for _, w := range s {
 		if u == w {
 			return true
@@ -73,47 +109,187 @@ func CheckUserOnHost(s []string, u string) bool {
 // User is created by executing shell command useradd
 func AddNewUser(name string) (bool) {
 
-	var argUser = []string{"-m", name}
+	var argUser = []string{"-g", usersGroup, "-m", name}
 	var userCmd = exec.Command("/usr/sbin/useradd", argUser...)
 
 	if _, err := os.Stat("/usr/sbin/useradd"); err == nil {
-		argUser = []string{"-m", name}
+		argUser = []string{"-g", usersGroup, "-m", name}
 		userCmd = exec.Command("/usr/sbin/useradd", argUser...)
 	} else if _, err := os.Stat("/usr/sbin/adduser"); err == nil {
-		argUser = []string{name}
+		argUser = []string{"--ingroup", usersGroup, name}
 		userCmd = exec.Command("/usr/sbin/adduser", argUser...)
 	} else {
 		cli.Log.Debug(err, ", useradd and adduser command not found")
 		return false;
 	}
 
-	if out, err := userCmd.Output(); err != nil {
+	if _, err := userCmd.Output(); err != nil {
 		cli.Log.Debug(err, ", There was an error by adding user: ", name)
 		return false
 	} else {
-
-		cli.Log.Debug("Output: %s\n", out)
+		cli.Log.Debug("Add new user success: " + name)
 		return true
 	}
 }
 
+// Group is created by executing shell command useradd
+func AddNewGroup(name string) (bool) {
+
+	var argGroup = []string{name}
+	var groupCmd = exec.Command("/usr/sbin/groupadd", argGroup...)
+
+	if _, err := os.Stat("/usr/sbin/groupadd"); err == nil {
+		argGroup = []string{name}
+		groupCmd = exec.Command("/usr/sbin/groupadd", argGroup...)
+	} else if _, err := os.Stat("/usr/sbin/addgroup"); err == nil {
+		argGroup = []string{name}
+		groupCmd = exec.Command("/usr/sbin/addgroup", argGroup...)
+	} else {
+		cli.Log.Debug(err, ", useradd and addgroup command not found")
+		return false;
+	}
+
+	if _, err := groupCmd.Output(); err != nil {
+		cli.Log.Debug(err, ", There was an error by adding group: ", name)
+		return false
+	} else {
+		cli.Log.Debug("Add new group success: " + name)
+		return true
+	}
+}
+
+// UID is changed by executing shell command usermod
+func ChangeUid(name string, id int) (bool) {
+
+	var argUser = []string{"-u", strconv.Itoa(id), name}
+	var userCmd = exec.Command("/usr/sbin/usermod", argUser...)
+
+	if _, err := os.Stat("/usr/sbin/usermod"); err != nil {
+		cli.Log.Debug(err, ", usermod command not found")
+		return false;
+	}
+
+	if _, err := userCmd.Output(); err != nil {
+		cli.Log.Debug(err, ", There was an error by change user id: ", name)
+		return false
+	} else {
+		cli.Log.Debug("Change Uid success: " + strconv.Itoa(id))
+		return true
+	}
+}
+
+// GID is changed by executing shell command groupmod
+func ChangeGid(name string, id int) (bool) {
+
+	var argUser = []string{"-g", strconv.Itoa(id), name}
+	var userCmd = exec.Command("/usr/sbin/groupmod", argUser...)
+
+	if _, err := os.Stat("/usr/sbin/groupmod"); err != nil {
+		cli.Log.Debug(err, ", groupmod command not found")
+		return false;
+	}
+
+	if _, err := userCmd.Output(); err != nil {
+		cli.Log.Debug(err, ", There was an error by change group id: ", name)
+		return false
+	} else {
+		cli.Log.Debug("Change Gid success: " + strconv.Itoa(id))
+		return true
+	}
+}
+
+// Groups is changed by executing shell command usermod
+func ChangeGroups(name string, groups []string) (bool) {
+
+	var argUser =  []string{"-G", strings.Join(groups, ","), name}
+	var userCmd = exec.Command("/usr/sbin/usermod", argUser...)
+
+	if _, err := os.Stat("/usr/sbin/usermod"); err != nil {
+		cli.Log.Debug(err, ", usermod command not found")
+		return false;
+	}
+
+	if _, err := userCmd.Output(); err != nil {
+		cli.Log.Debug(err, ", There was an error by add user to group: ", strings.Join(groups, ","))
+		return false
+	} else {
+		cli.Log.Debug("Change groups success: " + strings.Join(groups, ","))
+		return true
+	}
+}
+
+// Owner is changed by executing shell command usermod
+func ChangeOwner(name string, path string) (bool) {
+
+	var argUser =  []string{fmt.Sprintf("%s:%s", name, usersGroup), "-R", path}
+	var userCmd = exec.Command("/usr/bin/chown", argUser...)
+
+	if _, err := os.Stat("/usr/bin/chown"); err != nil {
+		cli.Log.Debug(err, ", usermod command not found")
+		return false;
+	}
+
+	if _, err := userCmd.Output(); err != nil {
+		cli.Log.Debug(err, ", There was an error by change owner: ", fmt.Sprintf("%s:%s", name, usersGroup))
+		return false
+	} else {
+		cli.Log.Debug("Change owner success: " + fmt.Sprintf("%s:%s", name, usersGroup))
+		return true
+	}
+}
+
+// Kill all process by user id
+func KillProcess(id int) (bool) {
+
+	var argUser =  []string{"-9", "-u", strconv.Itoa(id)}
+	var userCmd = exec.Command("/usr/bin/pkill", argUser...)
+
+	if _, err := os.Stat("/usr/bin/pkill"); err != nil {
+		cli.Log.Debug(err, ", pkill command not found")
+		return false;
+	}
+
+	if _, err := userCmd.Output(); err != nil {
+		cli.Log.Debug(err, ", There was an error by kill user id process: ", strconv.Itoa(id))
+		return false
+	} else {
+		cli.Log.Debug("Kill user id success: " + strconv.Itoa(id))
+		return true
+	}
+}
+
+// Write and append text to text file
+func WriteToLogFile(log string, path string) (bool) {
+
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
+	if err != nil {
+		cli.Log.Debug(err)
+		return false
+	}
+	
+	defer f.Close()
+	
+	if _, err = f.WriteString(log); err != nil {
+		cli.Log.Debug(err)
+		return false
+	}
+	return true
+}
 
 func initCLI() {
 	cli.CommandLine.String("client-id", "", "OAuth2 Client ID")
 	cli.CommandLine.String("client-secret", "", "OAuth2 Client Secret")
 	cli.CommandLine.StringArray("scopes", []string{}, "OAuth2 Scopes")
+	cli.CommandLine.String("config-url", "", "OAuth2 Config URL")
 	cli.CommandLine.String("redirect-url", "", "OAuth2 Redirect URL")
-	cli.CommandLine.String("endpoint-auth-url", "", "OAuth2 End Point Auth URL")
-	cli.CommandLine.String("endpoint-token-url", "", "OAuth2 End Point Token URL")
 	cli.CommandLine.String("username-format", "%s", "username format")
 
 	cli.BindSameName(
 		"client-id",
 		"client-secret",
 		"scopes",
+		"config-url",
 		"redirect-url",
-		"endpoint-auth-url",
-		"endpoint-token-url",
 		"username-format",
 	)
 }
@@ -146,49 +322,167 @@ func main() {
 	cli.Log.Debugf("ClientID: %s", cli.Config.GetString("client-id"))
 	cli.Log.Debugf("ClientSecret: %s", cli.Config.GetString("client-secret"))
 	cli.Log.Debugf("Scopes: %s", cli.Config.GetStringSlice("scopes"))
-	cli.Log.Debugf("EndPoint.AuthURL: %s", cli.Config.GetString("endpoint-auth-url"))
-	cli.Log.Debugf("EndPoint.TokenURL: %s", cli.Config.GetString("endpoint-token-url"))
+	cli.Log.Debugf("ConfigURL: %s", cli.Config.GetString("config-url"))
 
+	configURL := cli.Config.GetString("config-url")
+	cli.Log.Debug("create oauth2Context")
+	oauth2Context := context.Background()
+	provider, err := oidc.NewProvider(oauth2Context, configURL)
+	oidcConfig := &oidc.Config{
+		ClientID: cli.Config.GetString("client-id"),
+	}
 	oauth2Config := oauth2.Config{
 		ClientID:     cli.Config.GetString("client-id"),
 		ClientSecret: cli.Config.GetString("client-secret"),
 		Scopes:       cli.Config.GetStringSlice("scopes"),
-		Endpoint: oauth2.Endpoint{
-			AuthURL:  cli.Config.GetString("endpoint-auth-url"),
-			TokenURL: cli.Config.GetString("endpoint-token-url"),
-		},
+		Endpoint: provider.Endpoint(),
 	}
-
-	extraParameters := url.Values{}
-
-	for k, v := range cli.Config.GetStringMapString("extra-parameters") {
-		extraParameters[k] = []string{v}
-	}
-
-	cli.Log.Debug("create oauth2Context")
-
-	oauth2Context := context.Background()
 
 	cli.Log.Debug("call PasswordCredentialsToken")
 
-	oauth2Token, err := oauth2Config.PasswordCredentialsTokenEx(
+	oauth2Token, err := oauth2Config.PasswordCredentialsToken(
 		oauth2Context,
 		fmt.Sprintf(cli.Config.GetString("username-format"), username),
 		password,
-		extraParameters,
 	)
 
 	cli.Exit1IfError(err)
 
+	if err != nil {
+		// handle error
+		cli.Log.Debug("OAuth2 password to token failed")
+		cli.Exit(1)
+	}
+
+	// Extract the ID Token from OAuth2 token.
+	rawIDToken, ok := oauth2Token.Extra("id_token").(string)
+	if !ok {
+		// handle missing token
+		cli.Log.Debug("No id_token field in oauth2 token")
+		cli.Exit(1)
+	}
+
+	verifier := provider.Verifier(oidcConfig)
+
+	// Parse and verify ID Token payload.
+	idToken, err := verifier.Verify(oauth2Context, rawIDToken)
+	if err != nil {
+		// handle error
+		cli.Log.Debug("OAuth2 verify ID token failed")
+		cli.Exit(1)
+	}
+
+	userInfo, err := provider.UserInfo(oauth2Context, oauth2.StaticTokenSource(oauth2Token))
+	if err != nil {
+		// handle error
+		cli.Log.Debug("Failed to get userinfo")
+		cli.Exit(1)
+	}
+
+	// Extract provider claims
+	var providerClaims struct {
+		ScopesSupported []string `json:"scopes_supported"`
+		ClaimsSupported []string `json:"claims_supported"`
+	}
+	
+	if err := provider.Claims(&providerClaims); err != nil {
+		// handle unmarshaling error
+	}
+
+	cli.Log.Debug(providerClaims.ScopesSupported)
+	cli.Log.Debug(providerClaims.ClaimsSupported)
+
+	// Extract idToken claims
+	var idTokenClaims struct {
+		Email    string   `json:"email"`
+		Verified bool     `json:"email_verified,omitempty"`
+		Name     string   `json:"name,omitempty"`
+		Groups   []string `json:"groups,omitempty"`
+		Uid      int      `json:"uid"`
+	}
+	if err := idToken.Claims(&idTokenClaims); err != nil {
+		// handle error
+		cli.Log.Debug("OAuth2 get idToken claims failed")
+	}
+
+	cli.Log.Debug(idTokenClaims.Email)
+	cli.Log.Debug(idTokenClaims.Verified)
+	cli.Log.Debug(idTokenClaims.Name)
+	cli.Log.Debug(idTokenClaims.Groups)
+	cli.Log.Debug(idTokenClaims.Uid)
+
+	// Extract userInfo claims
+	var userInfoClaims struct {
+		Subject       string `json:"sub"`
+		Email         string `json:"email"`
+		EmailVerified bool   `json:"email_verified,omitempty"`
+	}
+	
+	if err := userInfo.Claims(&userInfoClaims); err != nil {
+		// handle unmarshaling error
+	}
+
+	cli.Log.Debug(userInfoClaims.Subject)
+	cli.Log.Debug(userInfoClaims.Email)
+	cli.Log.Debug(userInfoClaims.EmailVerified)
+
 	userList := ReadEtcPasswd(userFile)
+	groupList := ReadEtcGroup(groupFile)
+
+	if username == "root" {
+		cli.Log.Debug("OAuth2 not permit root login")
+		cli.Exit(1)
+	}
 
 	if !oauth2Token.Valid() {
 		cli.Log.Debug("OAuth2 authentication failed")
 		cli.Exit(1)
 	} else {
+		// Check and add user to host
 		if CheckUserOnHost(userList, username) == false {
+			// Check users group
+			_, err := user.LookupGroup(usersGroup)
+			if err != nil {
+				// The usersGroup not exist, create usersGroup
+				if AddNewGroup(usersGroup) == true {
+					cli.Log.Debug("Group was added:", usersGroup)
+				}
+			}
+			// If user not exist, add new one
 			if AddNewUser(username) == true {
 				cli.Log.Debug("User was added:", username)
+			}
+		}
+		// Change the user id form keycloak
+		if idTokenClaims.Uid != 0 {
+			u, err := user.Lookup(username)
+			if err != nil {
+				cli.Log.Debug("User not exist:", username)
+			} else {
+				cli.Log.Debug(fmt.Sprintf("u.Uid: %s, u.Gid: %s, u.Name: %s, u.HomeDir: %s, u.Username: %s\n",
+					u.Uid, u.Gid, u.Name, u.HomeDir, u.Username))
+				// If current user id not keycloak user id, it should be change
+				if strconv.Itoa(idTokenClaims.Uid) != u.Uid {
+					oldUid, _:= strconv.Atoi(u.Uid)
+					KillProcess(oldUid)
+					ChangeUid(username, idTokenClaims.Uid)
+					ChangeOwner(username, u.HomeDir)
+				}
+			}
+		}
+		// Add groups from keycloak
+		for _, groupname := range idTokenClaims.Groups {
+			if CheckGroupOnHost(groupList, groupname) == false {
+				// If group not exist, add new one
+				if AddNewGroup(groupname) == true {
+					cli.Log.Debug("Group was added:", groupname)
+				}
+			}
+		}
+		if username != "root" {
+			if len(idTokenClaims.Groups) > 0 {
+				// Change the user group from keycloak
+				ChangeGroups(username, idTokenClaims.Groups)
 			}
 		}
 	}

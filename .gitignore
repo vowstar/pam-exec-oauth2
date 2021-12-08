@@ -50,3 +50,5 @@
 pam-exec-oauth2
 pam-exec-oauth2.*
 .envrc
+
+/go
