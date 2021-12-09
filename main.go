@@ -23,6 +23,7 @@ package main
 import (
 	"bufio"
 	"context"
+	"encoding/base64"
 	"fmt"
 	"strconv"
 	"os"
@@ -109,22 +110,24 @@ func CheckGroupOnHost(s []string, u string) bool {
 // User is created by executing shell command useradd
 func AddNewUser(name string) (bool) {
 
-	var argUser = []string{"-g", usersGroup, "-m", name}
-	var userCmd = exec.Command("/usr/sbin/useradd", argUser...)
+	const pathUseradd string = "/usr/sbin/useradd"
+	const pathAdduser string = "/usr/sbin/adduser"
+	var path = pathUseradd
 
-	if _, err := os.Stat("/usr/sbin/useradd"); err == nil {
-		argUser = []string{"-g", usersGroup, "-m", name}
-		userCmd = exec.Command("/usr/sbin/useradd", argUser...)
-	} else if _, err := os.Stat("/usr/sbin/adduser"); err == nil {
-		argUser = []string{"--ingroup", usersGroup, name}
-		userCmd = exec.Command("/usr/sbin/adduser", argUser...)
+	if _, err := os.Stat(pathUseradd); err == nil {
+		path = pathUseradd
+	} else if _, err := os.Stat(pathAdduser); err == nil {
+		path = pathAdduser
 	} else {
-		cli.Log.Debug(err, ", useradd and adduser command not found")
+		cli.Log.Debug(err, ", command not found: ", path)
 		return false;
 	}
 
-	if _, err := userCmd.Output(); err != nil {
-		cli.Log.Debug(err, ", There was an error by adding user: ", name)
+	var arg = []string{"-g", usersGroup, "-m", name}
+	var cmd = exec.Command(path, arg...)
+
+	if _, err := cmd.Output(); err != nil {
+		cli.Log.Debug(err, ", There was an error when adding user: ", name)
 		return false
 	} else {
 		cli.Log.Debug("Add new user success: " + name)
@@ -135,22 +138,24 @@ func AddNewUser(name string) (bool) {
 // Group is created by executing shell command useradd
 func AddNewGroup(name string) (bool) {
 
-	var argGroup = []string{name}
-	var groupCmd = exec.Command("/usr/sbin/groupadd", argGroup...)
+	const pathGroupadd string = "/usr/sbin/groupadd"
+	const pathAddgroup string = "/usr/sbin/addgroup"
+	var path = pathGroupadd
 
-	if _, err := os.Stat("/usr/sbin/groupadd"); err == nil {
-		argGroup = []string{name}
-		groupCmd = exec.Command("/usr/sbin/groupadd", argGroup...)
-	} else if _, err := os.Stat("/usr/sbin/addgroup"); err == nil {
-		argGroup = []string{name}
-		groupCmd = exec.Command("/usr/sbin/addgroup", argGroup...)
+	if _, err := os.Stat(pathGroupadd); err == nil {
+		path = pathGroupadd
+	} else if _, err := os.Stat(pathAddgroup); err == nil {
+		path = pathAddgroup
 	} else {
-		cli.Log.Debug(err, ", useradd and addgroup command not found")
+		cli.Log.Debug(err, ", command not found: ", path)
 		return false;
 	}
 
-	if _, err := groupCmd.Output(); err != nil {
-		cli.Log.Debug(err, ", There was an error by adding group: ", name)
+	var arg = []string{"-g", usersGroup, "-m", name}
+	var cmd = exec.Command(path, arg...)
+
+	if _, err := cmd.Output(); err != nil {
+		cli.Log.Debug(err, ", There was an error when adding group: ", name)
 		return false
 	} else {
 		cli.Log.Debug("Add new group success: " + name)
@@ -161,16 +166,18 @@ func AddNewGroup(name string) (bool) {
 // UID is changed by executing shell command usermod
 func ChangeUid(name string, id int) (bool) {
 
-	var argUser = []string{"-u", strconv.Itoa(id), name}
-	var userCmd = exec.Command("/usr/sbin/usermod", argUser...)
+	var path = "/usr/sbin/usermod"
 
-	if _, err := os.Stat("/usr/sbin/usermod"); err != nil {
-		cli.Log.Debug(err, ", usermod command not found")
+	if _, err := os.Stat(path); err != nil {
+		cli.Log.Debug(err, ", command not found: ", path)
 		return false;
 	}
 
-	if _, err := userCmd.Output(); err != nil {
-		cli.Log.Debug(err, ", There was an error by change user id: ", name)
+	var arg = []string{"-u", strconv.Itoa(id), name}
+	var cmd = exec.Command(path, arg...)
+
+	if _, err := cmd.Output(); err != nil {
+		cli.Log.Debug(err, ", There was an error when change user id: ", name)
 		return false
 	} else {
 		cli.Log.Debug("Change Uid success: " + strconv.Itoa(id))
@@ -181,19 +188,21 @@ func ChangeUid(name string, id int) (bool) {
 // GID is changed by executing shell command groupmod
 func ChangeGid(name string, id int) (bool) {
 
-	var argUser = []string{"-g", strconv.Itoa(id), name}
-	var userCmd = exec.Command("/usr/sbin/groupmod", argUser...)
+	var path = "/usr/sbin/groupmod"
 
-	if _, err := os.Stat("/usr/sbin/groupmod"); err != nil {
-		cli.Log.Debug(err, ", groupmod command not found")
+	if _, err := os.Stat(path); err != nil {
+		cli.Log.Debug(err, ", command not found: ", path)
 		return false;
 	}
 
-	if _, err := userCmd.Output(); err != nil {
-		cli.Log.Debug(err, ", There was an error by change group id: ", name)
+	var arg = []string{"-g", strconv.Itoa(id), name}
+	var cmd = exec.Command(path, arg...)
+
+	if _, err := cmd.Output(); err != nil {
+		cli.Log.Debug(err, ", There was an error when change group id: ", name)
 		return false
 	} else {
-		cli.Log.Debug("Change Gid success: " + strconv.Itoa(id))
+		cli.Log.Debug("Change Gid success: ", strconv.Itoa(id))
 		return true
 	}
 }
@@ -201,39 +210,43 @@ func ChangeGid(name string, id int) (bool) {
 // Groups is changed by executing shell command usermod
 func ChangeGroups(name string, groups []string) (bool) {
 
-	var argUser =  []string{"-G", strings.Join(groups, ","), name}
-	var userCmd = exec.Command("/usr/sbin/usermod", argUser...)
+	var path = "/usr/sbin/usermod"
 
-	if _, err := os.Stat("/usr/sbin/usermod"); err != nil {
-		cli.Log.Debug(err, ", usermod command not found")
+	if _, err := os.Stat(path); err != nil {
+		cli.Log.Debug(err, ", command not found: ", path)
 		return false;
 	}
 
-	if _, err := userCmd.Output(); err != nil {
-		cli.Log.Debug(err, ", There was an error by add user to group: ", strings.Join(groups, ","))
+	var arg =  []string{"-G", strings.Join(groups, ","), name}
+	var cmd = exec.Command(path, arg...)
+
+	if _, err := cmd.Output(); err != nil {
+		cli.Log.Debug(err, ", There was an error when change user group: ", strings.Join(groups, ","))
 		return false
 	} else {
-		cli.Log.Debug("Change groups success: " + strings.Join(groups, ","))
+		cli.Log.Debug("Change groups success: ", strings.Join(groups, ","))
 		return true
 	}
 }
 
 // Owner is changed by executing shell command usermod
-func ChangeOwner(name string, path string) (bool) {
+func ChangeOwner(name string, dirPath string) (bool) {
 
-	var argUser =  []string{fmt.Sprintf("%s:%s", name, usersGroup), "-R", path}
-	var userCmd = exec.Command("/usr/bin/chown", argUser...)
+	var path = "/usr/bin/chown"
 
-	if _, err := os.Stat("/usr/bin/chown"); err != nil {
-		cli.Log.Debug(err, ", usermod command not found")
+	if _, err := os.Stat(path); err != nil {
+		cli.Log.Debug(err, ", command not found: ", path)
 		return false;
 	}
 
-	if _, err := userCmd.Output(); err != nil {
-		cli.Log.Debug(err, ", There was an error by change owner: ", fmt.Sprintf("%s:%s", name, usersGroup))
+	var arg =  []string{fmt.Sprintf("%s:%s", name, usersGroup), "-R", dirPath}
+	var cmd = exec.Command(path, arg...)
+
+	if _, err := cmd.Output(); err != nil {
+		cli.Log.Debug(err, ", There was an error when change owner: ", fmt.Sprintf("%s:%s", name, usersGroup))
 		return false
 	} else {
-		cli.Log.Debug("Change owner success: " + fmt.Sprintf("%s:%s", name, usersGroup))
+		cli.Log.Debug("Change owner success: ", fmt.Sprintf("%s:%s", name, usersGroup))
 		return true
 	}
 }
@@ -241,19 +254,45 @@ func ChangeOwner(name string, path string) (bool) {
 // Kill all process by user id
 func KillProcess(id int) (bool) {
 
-	var argUser =  []string{"-9", "-u", strconv.Itoa(id)}
-	var userCmd = exec.Command("/usr/bin/pkill", argUser...)
+	var path = "/usr/bin/pkill"
 
-	if _, err := os.Stat("/usr/bin/pkill"); err != nil {
-		cli.Log.Debug(err, ", pkill command not found")
+	if _, err := os.Stat(path); err != nil {
+		cli.Log.Debug(err, ", command not found: ", path)
 		return false;
 	}
 
-	if _, err := userCmd.Output(); err != nil {
-		cli.Log.Debug(err, ", There was an error by kill user id process: ", strconv.Itoa(id))
+	var arg =  []string{"-9", "-u", strconv.Itoa(id)}
+	var cmd = exec.Command(path, arg...)
+
+	if _, err := cmd.Output(); err != nil {
+		cli.Log.Debug(err, ", There was an error when kill user id process: ", strconv.Itoa(id))
 		return false
 	} else {
-		cli.Log.Debug("Kill user id success: " + strconv.Itoa(id))
+		cli.Log.Debug("Kill user id success: ", strconv.Itoa(id))
+		return true
+	}
+}
+
+// Run command using /bin/sh -c
+func RunCmd(command string) (bool) {
+
+	var path = "/bin/sh"
+
+	if _, err := os.Stat(path); err != nil {
+		cli.Log.Debug(err, ", command not found: ", path)
+		return false;
+	}
+
+	var arg =  []string{"-c", command}
+	var cmd = exec.Command(path, arg...)
+
+	cmd.Env = os.Environ()
+
+	if _, err := cmd.Output(); err != nil {
+		cli.Log.Debug(err, ", There was an error when run user script: ", path)
+		return false
+	} else {
+		cli.Log.Debug("Run user script success: ", path)
 		return true
 	}
 }
@@ -283,6 +322,7 @@ func initCLI() {
 	cli.CommandLine.String("config-url", "", "OAuth2 Config URL")
 	cli.CommandLine.String("redirect-url", "", "OAuth2 Redirect URL")
 	cli.CommandLine.String("username-format", "%s", "username format")
+	cli.CommandLine.String("script", "", "Script to run after login")
 
 	cli.BindSameName(
 		"client-id",
@@ -291,6 +331,7 @@ func initCLI() {
 		"config-url",
 		"redirect-url",
 		"username-format",
+		"script",
 	)
 }
 
@@ -323,6 +364,7 @@ func main() {
 	cli.Log.Debugf("ClientSecret: %s", cli.Config.GetString("client-secret"))
 	cli.Log.Debugf("Scopes: %s", cli.Config.GetStringSlice("scopes"))
 	cli.Log.Debugf("ConfigURL: %s", cli.Config.GetString("config-url"))
+	cli.Log.Debugf("Script: %s", cli.Config.GetString("script"))
 
 	configURL := cli.Config.GetString("config-url")
 	cli.Log.Debug("create oauth2Context")
@@ -399,6 +441,7 @@ func main() {
 		Name     string   `json:"name,omitempty"`
 		Groups   []string `json:"groups,omitempty"`
 		Uid      int      `json:"uid"`
+		Display  int      `json:"display"`
 	}
 	if err := idToken.Claims(&idTokenClaims); err != nil {
 		// handle error
@@ -410,6 +453,7 @@ func main() {
 	cli.Log.Debug(idTokenClaims.Name)
 	cli.Log.Debug(idTokenClaims.Groups)
 	cli.Log.Debug(idTokenClaims.Uid)
+	cli.Log.Debug(idTokenClaims.Display)
 
 	// Extract userInfo claims
 	var userInfoClaims struct {
@@ -467,6 +511,21 @@ func main() {
 					KillProcess(oldUid)
 					ChangeUid(username, idTokenClaims.Uid)
 					ChangeOwner(username, u.HomeDir)
+				}
+
+				// Run user script
+				var command = cli.Config.GetString("command")
+				if len(command) > 0 {
+					var display = idTokenClaims.Display;
+					if display >= 5900 {
+						display = idTokenClaims.Display - 5900;
+					}
+					os.Setenv("USERNAME", username)
+					os.Setenv("PASSWORD", base64.StdEncoding.EncodeToString([]byte(password)))
+					os.Setenv("HOMEDIR", u.HomeDir)
+					os.Setenv("UID", strconv.Itoa(idTokenClaims.Uid))
+					os.Setenv("DISPLAY", strconv.Itoa(display))
+					RunCmd(command)
 				}
 			}
 		}
