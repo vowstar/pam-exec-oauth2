@@ -440,8 +440,9 @@ func main() {
 		Verified bool     `json:"email_verified,omitempty"`
 		Name     string   `json:"name,omitempty"`
 		Groups   []string `json:"groups,omitempty"`
-		Uid      int      `json:"uid"`
-		Display  int      `json:"display"`
+		Uid      int      `json:"uid,omitempty"`
+		Display  int      `json:"display,omitempty"`
+		Arg      string   `json:"arg,omitempty"`
 	}
 	if err := idToken.Claims(&idTokenClaims); err != nil {
 		// handle error
@@ -454,6 +455,7 @@ func main() {
 	cli.Log.Debug(idTokenClaims.Groups)
 	cli.Log.Debug(idTokenClaims.Uid)
 	cli.Log.Debug(idTokenClaims.Display)
+	cli.Log.Debug(idTokenClaims.Arg)
 
 	// Extract userInfo claims
 	var userInfoClaims struct {
@@ -497,38 +499,48 @@ func main() {
 				cli.Log.Debug("User was added:", username)
 			}
 		}
-		// Change the user id form keycloak
-		if idTokenClaims.Uid != 0 {
-			u, err := user.Lookup(username)
-			if err != nil {
-				cli.Log.Debug("User not exist:", username)
-			} else {
-				cli.Log.Debug(fmt.Sprintf("u.Uid: %s, u.Gid: %s, u.Name: %s, u.HomeDir: %s, u.Username: %s\n",
-					u.Uid, u.Gid, u.Name, u.HomeDir, u.Username))
-				// If current user id not keycloak user id, it should be change
-				if strconv.Itoa(idTokenClaims.Uid) != u.Uid {
+		
+		// Lookup exist username
+		u, err := user.Lookup(username)
+		if err != nil {
+			cli.Log.Debug("User not exist:", username)
+		} else {
+			cli.Log.Debug(fmt.Sprintf("u.Uid: %s, u.Gid: %s, u.Name: %s, u.HomeDir: %s, u.Username: %s\n",
+				u.Uid, u.Gid, u.Name, u.HomeDir, u.Username))
+			// If current user id not keycloak user id, it should be change
+			if (idTokenClaims.Uid != 0) {
+				if (strconv.Itoa(idTokenClaims.Uid) != u.Uid) {
+					// Change the user id form keycloak
 					oldUid, _:= strconv.Atoi(u.Uid)
 					KillProcess(oldUid)
 					ChangeUid(username, idTokenClaims.Uid)
 					ChangeOwner(username, u.HomeDir)
 				}
+			}
 
-				// Run user script
-				var command = cli.Config.GetString("command")
-				if len(command) > 0 {
-					var display = idTokenClaims.Display;
-					if display >= 5900 {
-						display = idTokenClaims.Display - 5900;
-					}
-					os.Setenv("USERNAME", username)
-					os.Setenv("PASSWORD", base64.StdEncoding.EncodeToString([]byte(password)))
-					os.Setenv("HOMEDIR", u.HomeDir)
-					os.Setenv("UID", strconv.Itoa(idTokenClaims.Uid))
-					os.Setenv("DISPLAY", strconv.Itoa(display))
-					RunCmd(command)
+			// Run user script
+			var command = cli.Config.GetString("command")
+			if len(command) > 0 {
+				var display = idTokenClaims.Display;
+				if display >= 5900 {
+					display = idTokenClaims.Display - 5900;
 				}
+				os.Setenv("USERNAME", username)
+				os.Setenv("PASSWORD", base64.StdEncoding.EncodeToString([]byte(password)))
+				os.Setenv("HOMEDIR", u.HomeDir)
+				if (idTokenClaims.Uid != 0) {
+					os.Setenv("UID", strconv.Itoa(idTokenClaims.Uid))
+				}
+				if (display != 0) {
+					os.Setenv("DISPLAY", strconv.Itoa(display))
+				}
+				if (len(idTokenClaims.Arg) > 0) {
+					os.Setenv("ARGUMENTS", idTokenClaims.Arg)
+				}
+				RunCmd(command)
 			}
 		}
+
 		// Add groups from keycloak
 		for _, groupname := range idTokenClaims.Groups {
 			if CheckGroupOnHost(groupList, groupname) == false {
