@@ -52,3 +52,5 @@ pam-exec-oauth2.*
 .envrc
 
 /go
+/script
+
