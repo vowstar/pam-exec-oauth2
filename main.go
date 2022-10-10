@@ -31,6 +31,7 @@ import (
 	"os/user"
 	"path/filepath"
 	"strings"
+	"syscall"
 
 	"golang.org/x/oauth2"
 	"github.com/coreos/go-oidc/v3/oidc"
@@ -42,7 +43,6 @@ var cli = simplecli.NewCLI()
 const (
 	userFile string = "/etc/passwd"
 	groupFile string = "/etc/group"
-	usersGroup string = "users"
 )
 
 // Read file /etc/passwd and return slice of users
@@ -110,20 +110,14 @@ func CheckGroupOnHost(s []string, u string) bool {
 // User is created by executing shell command useradd
 func AddNewUser(name string) (bool) {
 
-	const pathUseradd string = "/usr/sbin/useradd"
-	const pathAdduser string = "/usr/sbin/adduser"
-	var path = pathUseradd
+	const path string = "/usr/sbin/useradd"
 
-	if _, err := os.Stat(pathUseradd); err == nil {
-		path = pathUseradd
-	} else if _, err := os.Stat(pathAdduser); err == nil {
-		path = pathAdduser
-	} else {
+	if _, err := os.Stat(path); err != nil {
 		cli.Log.Debug(err, ", command not found: ", path)
 		return false;
 	}
 
-	var arg = []string{"-g", usersGroup, "-m", name}
+	var arg = []string{"-m", "-U", name}
 	var cmd = exec.Command(path, arg...)
 
 	if _, err := cmd.Output(); err != nil {
@@ -138,20 +132,14 @@ func AddNewUser(name string) (bool) {
 // Group is created by executing shell command useradd
 func AddNewGroup(name string) (bool) {
 
-	const pathGroupadd string = "/usr/sbin/groupadd"
-	const pathAddgroup string = "/usr/sbin/addgroup"
-	var path = pathGroupadd
+	const path string = "/usr/sbin/groupadd"
 
-	if _, err := os.Stat(pathGroupadd); err == nil {
-		path = pathGroupadd
-	} else if _, err := os.Stat(pathAddgroup); err == nil {
-		path = pathAddgroup
-	} else {
+	if _, err := os.Stat(path); err != nil {
 		cli.Log.Debug(err, ", command not found: ", path)
 		return false;
 	}
 
-	var arg = []string{"-g", usersGroup, "-m", name}
+	var arg = []string{"-f", name}
 	var cmd = exec.Command(path, arg...)
 
 	if _, err := cmd.Output(); err != nil {
@@ -166,7 +154,7 @@ func AddNewGroup(name string) (bool) {
 // UID is changed by executing shell command usermod
 func ChangeUid(name string, id int) (bool) {
 
-	var path = "/usr/sbin/usermod"
+	const path string = "/usr/sbin/usermod"
 
 	if _, err := os.Stat(path); err != nil {
 		cli.Log.Debug(err, ", command not found: ", path)
@@ -188,7 +176,7 @@ func ChangeUid(name string, id int) (bool) {
 // GID is changed by executing shell command groupmod
 func ChangeGid(name string, id int) (bool) {
 
-	var path = "/usr/sbin/groupmod"
+	const path string = "/usr/sbin/groupmod"
 
 	if _, err := os.Stat(path); err != nil {
 		cli.Log.Debug(err, ", command not found: ", path)
@@ -210,12 +198,14 @@ func ChangeGid(name string, id int) (bool) {
 // Groups is changed by executing shell command usermod
 func ChangeGroups(name string, groups []string) (bool) {
 
-	var path = "/usr/sbin/usermod"
+	const path string = "/usr/sbin/usermod"
 
 	if _, err := os.Stat(path); err != nil {
 		cli.Log.Debug(err, ", command not found: ", path)
 		return false;
 	}
+
+	groups = append(groups, name)
 
 	var arg =  []string{"-G", strings.Join(groups, ","), name}
 	var cmd = exec.Command(path, arg...)
@@ -239,14 +229,14 @@ func ChangeOwner(name string, dirPath string) (bool) {
 		return false;
 	}
 
-	var arg =  []string{fmt.Sprintf("%s:%s", name, usersGroup), "-R", dirPath}
+	var arg =  []string{fmt.Sprintf("%s:%s", name, name), "-R", dirPath}
 	var cmd = exec.Command(path, arg...)
 
 	if _, err := cmd.Output(); err != nil {
-		cli.Log.Debug(err, ", There was an error when change owner: ", fmt.Sprintf("%s:%s", name, usersGroup))
+		cli.Log.Debug(err, ", There was an error when change owner: ", fmt.Sprintf("%s:%s", name, name))
 		return false
 	} else {
-		cli.Log.Debug("Change owner success: ", fmt.Sprintf("%s:%s", name, usersGroup))
+		cli.Log.Debug("Change owner success: ", fmt.Sprintf("%s:%s", name, name))
 		return true
 	}
 }
@@ -484,16 +474,17 @@ func main() {
 		cli.Log.Debug("OAuth2 authentication failed")
 		cli.Exit(1)
 	} else {
+		// Check SUID
+		if syscall.Getuid() != 0 {
+			// Try set SUID
+			err := syscall.Setuid(0)
+			if err != nil {
+				cli.Log.Debug("Set SUID fail, Some functions will not work")
+			}
+		}
+
 		// Check and add user to host
 		if CheckUserOnHost(userList, username) == false {
-			// Check users group
-			_, err := user.LookupGroup(usersGroup)
-			if err != nil {
-				// The usersGroup not exist, create usersGroup
-				if AddNewGroup(usersGroup) == true {
-					cli.Log.Debug("Group was added:", usersGroup)
-				}
-			}
 			// If user not exist, add new one
 			if AddNewUser(username) == true {
 				cli.Log.Debug("User was added:", username)
@@ -514,6 +505,7 @@ func main() {
 					oldUid, _:= strconv.Atoi(u.Uid)
 					KillProcess(oldUid)
 					ChangeUid(username, idTokenClaims.Uid)
+					ChangeGid(username, idTokenClaims.Uid)
 					ChangeOwner(username, u.HomeDir)
 				}
 			}
@@ -541,19 +533,21 @@ func main() {
 			}
 		}
 
-		// Add groups from keycloak
+		// Add groups from keycloak if exists
+		var existGroupList =  []string{}
 		for _, groupname := range idTokenClaims.Groups {
 			if CheckGroupOnHost(groupList, groupname) == false {
-				// If group not exist, add new one
-				if AddNewGroup(groupname) == true {
-					cli.Log.Debug("Group was added:", groupname)
-				}
+				// Group not exist
+				cli.Log.Debug("Group not found:", groupname)
+			} else {
+				// Group exist, add to list
+				existGroupList = append(existGroupList, groupname)
 			}
 		}
 		if username != "root" {
-			if len(idTokenClaims.Groups) > 0 {
-				// Change the user group from keycloak
-				ChangeGroups(username, idTokenClaims.Groups)
+			if len(existGroupList) > 0 {
+				// Change the user group from keycloak if exist
+				ChangeGroups(username, existGroupList)
 			}
 		}
 	}
