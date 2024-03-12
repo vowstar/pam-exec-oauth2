@@ -222,7 +222,7 @@ func ChangeGroups(name string, groups []string) (bool) {
 // Owner is changed by executing shell command usermod
 func ChangeOwner(name string, dirPath string) (bool) {
 
-	var path = "/usr/bin/chown"
+	const path string = "/usr/bin/chown"
 
 	if _, err := os.Stat(path); err != nil {
 		cli.Log.Debug(err, ", command not found: ", path)
@@ -244,7 +244,7 @@ func ChangeOwner(name string, dirPath string) (bool) {
 // Kill all process by user id
 func KillProcess(id int) (bool) {
 
-	var path = "/usr/bin/pkill"
+	const path string = "/usr/bin/pkill"
 
 	if _, err := os.Stat(path); err != nil {
 		cli.Log.Debug(err, ", command not found: ", path)
@@ -266,7 +266,7 @@ func KillProcess(id int) (bool) {
 // Run command using /bin/sh -c
 func RunCmd(command string) (bool) {
 
-	var path = "/bin/sh"
+	const path string = "/bin/sh"
 
 	if _, err := os.Stat(path); err != nil {
 		cli.Log.Debug(err, ", command not found: ", path)
