@@ -107,6 +107,17 @@ func CheckGroupOnHost(s []string, u string) bool {
 	return false
 }
 
+// Check if the provided shell path is valid and exists on the filesystem
+func CheckShellOnHost(shellPath string) bool {
+	if shellPath == "" {
+		return false
+	}
+	if _, err := os.Stat(shellPath); os.IsNotExist(err) {
+		return false
+	}
+	return true
+}
+
 // User is created by executing shell command useradd
 func AddNewUser(name string) (bool) {
 
@@ -237,6 +248,37 @@ func ChangeOwner(name string, dirPath string) (bool) {
 		return false
 	} else {
 		cli.Log.Debug("Change owner success: ", fmt.Sprintf("%s:%s", name, name))
+		return true
+	}
+}
+
+
+// ChangeShell changes the shell for a specified user.
+// If shellPath is empty or doesn't exist, it returns false.
+func ChangeShell(name string, shellPath string) bool {
+	const path string = "/usr/bin/chsh"
+
+	// Use CheckShellOnHost to check if the shell path is valid
+	if !CheckShellOnHost(shellPath) {
+		return false
+	}
+
+	// Check if chsh command exists
+	if _, err := os.Stat(path); err != nil {
+		cli.Log.Debug(err, ", command not found: ", path)
+		return false
+	}
+
+	// Prepare arguments for the command
+	arg := []string{"-s", shellPath, name}
+	cmd := exec.Command(path, arg...)
+
+	// Execute the command
+	if _, err := cmd.Output(); err != nil {
+		cli.Log.Debug(err, ", There was an error when changing shell: ", shellPath)
+		return false
+	} else {
+		cli.Log.Debug("Change shell success: ", shellPath)
 		return true
 	}
 }
@@ -432,6 +474,7 @@ func main() {
 		Groups   []string `json:"groups,omitempty"`
 		Uid      int      `json:"uid,omitempty"`
 		Display  int      `json:"display,omitempty"`
+		Shell    string   `json:"shell,omitempty"`
 		Arg      string   `json:"arg,omitempty"`
 	}
 	if err := idToken.Claims(&idTokenClaims); err != nil {
@@ -445,6 +488,7 @@ func main() {
 	cli.Log.Debug(idTokenClaims.Groups)
 	cli.Log.Debug(idTokenClaims.Uid)
 	cli.Log.Debug(idTokenClaims.Display)
+	cli.Log.Debug(idTokenClaims.Shell)
 	cli.Log.Debug(idTokenClaims.Arg)
 
 	// Extract userInfo claims
@@ -507,6 +551,9 @@ func main() {
 					ChangeUid(username, idTokenClaims.Uid)
 					ChangeGid(username, idTokenClaims.Uid)
 					ChangeOwner(username, u.HomeDir)
+					if CheckShellOnHost(idTokenClaims.Shell) {
+						ChangeShell(username, idTokenClaims.Shell)
+					}
 				}
 			}
 
@@ -525,6 +572,9 @@ func main() {
 				}
 				if (display != 0) {
 					os.Setenv("DISPLAY", strconv.Itoa(display))
+				}
+				if CheckShellOnHost(idTokenClaims.Shell) {
+					os.Setenv("SHELL", idTokenClaims.Shell)
 				}
 				if (len(idTokenClaims.Arg) > 0) {
 					os.Setenv("ARGUMENTS", idTokenClaims.Arg)
