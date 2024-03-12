@@ -551,9 +551,14 @@ func main() {
 					ChangeUid(username, idTokenClaims.Uid)
 					ChangeGid(username, idTokenClaims.Uid)
 					ChangeOwner(username, u.HomeDir)
-					if CheckShellOnHost(idTokenClaims.Shell) {
-						ChangeShell(username, idTokenClaims.Shell)
-					}
+				}
+				if (strconv.Itoa(idTokenClaims.Uid) != u.Gid) {
+					// Change the group id form keycloak
+					ChangeGid(username, idTokenClaims.Uid)
+					ChangeOwner(username, u.HomeDir)
+				}
+				if CheckShellOnHost(idTokenClaims.Shell) {
+					ChangeShell(username, idTokenClaims.Shell)
 				}
 			}
 
